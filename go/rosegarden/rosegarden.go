@@ -5,54 +5,133 @@ type Item struct {
 	SellIn, Quality int
 }
 
-func UpdateQuality(items []*Item) {
-	for i := 0; i < len(items); i++ {
+// 4 types of items, 1 normal and 3 specials based on the assumptions
+type NormalItem struct {
+	*Item
+}
 
-		if items[i].Name != "Aged Brie" && items[i].Name != "Backstage passes to a TAFKAL80ETC concert" {
-			if items[i].Quality > 0 {
-				if items[i].Name != "Sulfuras, Hand of Ragnaros" {
-					items[i].Quality = items[i].Quality - 1
-				}
-			}
-		} else {
-			if items[i].Quality < 50 {
-				items[i].Quality = items[i].Quality + 1
-				if items[i].Name == "Backstage passes to a TAFKAL80ETC concert" {
-					if items[i].SellIn < 11 {
-						if items[i].Quality < 50 {
-							items[i].Quality = items[i].Quality + 1
-						}
-					}
-					if items[i].SellIn < 6 {
-						if items[i].Quality < 50 {
-							items[i].Quality = items[i].Quality + 1
-						}
-					}
-				}
-			}
-		}
+func NewNomralItem(item *Item) *NormalItem {
+	return &NormalItem{
+		Item: item,
+	}
+}
 
-		if items[i].Name != "Sulfuras, Hand of Ragnaros" {
-			items[i].SellIn = items[i].SellIn - 1
-		}
+type AgedBrie struct {
+	*Item
+}
 
-		if items[i].SellIn < 0 {
-			if items[i].Name != "Aged Brie" {
-				if items[i].Name != "Backstage passes to a TAFKAL80ETC concert" {
-					if items[i].Quality > 0 {
-						if items[i].Name != "Sulfuras, Hand of Ragnaros" {
-							items[i].Quality = items[i].Quality - 1
-						}
-					}
-				} else {
-					items[i].Quality = items[i].Quality - items[i].Quality
-				}
-			} else {
-				if items[i].Quality < 50 {
-					items[i].Quality = items[i].Quality + 1
-				}
-			}
-		}
+type Suluras struct {
+	*Item
+}
+
+type BackstagePass struct {
+	*Item
+}
+
+func NewAgedBrie(item *Item) *AgedBrie {
+	return &AgedBrie{
+		Item: item,
+	}
+}
+func NewSuluras(item *Item) *Suluras {
+	return &Suluras{
+		Item: item,
+	}
+}
+func NewBackstagePass(item *Item) *BackstagePass {
+	return &BackstagePass{
+		Item: item,
+	}
+}
+
+// create an interface that all items can use
+type Updatable interface {
+	Update()
+}
+type UpdatableItemCreation func(item *Item) Updatable
+
+func MapItem(createClosure map[string]UpdatableItemCreation, item *Item) Updatable {
+	create, exists := createClosure[item.Name]
+	if exists {
+		return create(item)
+	} else {
+		return NewNomralItem(item)
+	}
+}
+
+// Update functions for the items
+func (item *NormalItem) Update() {
+	var decreaseRate = -1
+	item.SellIn += decreaseRate
+	if item.SellIn > 0 {
+		item.Quality += decreaseRate
+	} else {
+		item.Quality += decreaseRate * 2
+	}
+	item.itemQualityRangeAdjuster()
+}
+
+func (item *AgedBrie) Update() {
+	var decreaseRate = -1
+	item.SellIn += decreaseRate
+	item.Quality -= decreaseRate
+	if item.Quality > 50 {
+		item.Quality = 50
+	}
+	item.itemQualityRangeAdjuster()
+}
+func (item *Suluras) Update() {}
+
+func (item *BackstagePass) Update() {
+	var decreaseRate = -1
+	item.SellIn += decreaseRate
+	s := item.SellIn
+	switch {
+	case s > 10:
+		item.Quality -= decreaseRate
+	case s <= 10 && s > 5:
+		item.Quality -= decreaseRate * 2
+	case s <= 5 && s >= 0:
+		item.Quality -= decreaseRate * 3
+	case s < 0:
+		item.Quality = 0
+	}
+	item.itemQualityRangeAdjuster()
+}
+
+func (item *Item) itemQualityRangeAdjuster() {
+	if item.Quality < 0 {
+		item.Quality = 0
+	} else if item.Quality > 50 {
+		item.Quality = 50
 	}
 
+}
+
+/*
+The origional prompt solution is more in Python Style
+Because it is trying to use a for loop with pointer in the UpdateQuality func
+and Golang's variables in for loop are values,
+this will cause passing issues in the future.
+And there are 3 special items which don't follow the regular item rules,
+I suggest to use switch case instead of if else to make the code more readable
+*/
+func UpdateQuality(items []*Item) {
+	creationMap := map[string]UpdatableItemCreation{
+		"Aged Brie": func(item *Item) Updatable {
+			return NewNomralItem(item)
+		},
+		"Sulfuras, Hand of Ragnaros": func(item *Item) Updatable {
+			return NewSuluras(item)
+		},
+		"Backstage passes to a TAFKAL80ETC concert": func(item *Item) Updatable {
+			return NewBackstagePass(item)
+		},
+	}
+
+	for i := 0; i < len(items); i++ {
+
+		updatableItem := MapItem(creationMap, items[i])
+		updatableItem.Update()
+	}
 }
